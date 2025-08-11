@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RentReviews - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-50 via-white to-cyan-50 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 flex items-center">
+                        <div class="bg-gradient-to-r from-indigo-600 to-purple-600 w-8 h-8 rounded-lg flex items-center justify-center">
+                            <span class="text-white font-bold text-sm">⭐</span>
+                        </div>
+                        <span class="ml-3 text-xl font-bold text-gray-900">RentReviews</span>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="relative">
+                        <button id="userMenuButton" class="flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            <div class="bg-gradient-to-r from-indigo-500 to-purple-600 w-8 h-8 rounded-full flex items-center justify-center">
+                                <span id="userInitials" class="text-white font-medium text-sm">?</span>
+                            </div>
+                            <span id="userNameNav" class="ml-3 text-gray-700 font-medium">Loading...</span>
+                        </button>
+                    </div>
+                    <button id="logoutBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                        Sign Out
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div class="px-4 py-6 sm:px-0">
+            <!-- Welcome Section -->
+            <div class="bg-white overflow-hidden shadow-xl rounded-lg mb-8">
+                <div class="bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-12">
+                    <div class="flex items-center">
+                        <div class="bg-white bg-opacity-20 p-3 rounded-full">
+                            <span class="text-white text-2xl">👋</span>
+                        </div>
+                        <div class="ml-6">
+                            <h1 id="welcomeMessage" class="text-3xl font-bold text-white">
+                                Welcome back, Loading...!
+                            </h1>
+                            <p class="text-indigo-100 mt-2 text-lg">
+                                Here's what's happening with your rental search
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <!-- Reviews Written -->
+                <div class="bg-white overflow-hidden shadow-lg rounded-lg">
+                    <div class="p-6">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <div class="bg-indigo-500 p-3 rounded-lg">
+                                    <span class="text-white text-xl">⭐</span>
+                                </div>
+                            </div>
+                            <div class="ml-4">
+                                <div class="text-3xl font-bold text-gray-900">0</div>
+                                <div class="text-sm font-medium text-gray-500">Reviews Written</div>
+                                <div class="text-xs text-gray-400 mt-1">Help other renters by sharing your experience</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Properties Saved -->
+                <div class="bg-white overflow-hidden shadow-lg rounded-lg">
+                    <div class="p-6">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <div class="bg-green-500 p-3 rounded-lg">
+                                    <span class="text-white text-xl">🏠</span>
+                                </div>
+                            </div>
+                            <div class="ml-4">
+                                <div class="text-3xl font-bold text-gray-900">0</div>
+                                <div class="text-sm font-medium text-gray-500">Properties Saved</div>
+                                <div class="text-xs text-gray-400 mt-1">Keep track of places you're interested in</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Account Status -->
+                <div class="bg-white overflow-hidden shadow-lg rounded-lg">
+                    <div class="p-6">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <div class="bg-purple-500 p-3 rounded-lg">
+                                    <span class="text-white text-xl">👤</span>
+                                </div>
+                            </div>
+                            <div class="ml-4">
+                                <div class="text-sm font-bold text-green-600 bg-green-100 px-2 py-1 rounded-full">ACTIVE</div>
+                                <div class="text-sm font-medium text-gray-500 mt-1">Account Status</div>
+                                <div id="userRole" class="text-xs text-gray-400 mt-1">Renter Account</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="bg-white shadow-lg rounded-lg overflow-hidden mb-8">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">Quick Actions</h3>
+                </div>
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <button class="bg-gradient-to-r from-indigo-500 to-purple-600 text-white p-4 rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all transform hover:scale-105">
+                            <div class="text-2xl mb-2">🔍</div>
+                            <div class="font-medium">Search Properties</div>
+                            <div class="text-xs opacity-90 mt-1">Find your next home</div>
+                        </button>
+                        
+                        <button class="bg-gradient-to-r from-green-500 to-emerald-600 text-white p-4 rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all transform hover:scale-105">
+                            <div class="text-2xl mb-2">✍️</div>
+                            <div class="font-medium">Write Review</div>
+                            <div class="text-xs opacity-90 mt-1">Share your experience</div>
+                        </button>
+                        
+                        <button class="bg-gradient-to-r from-blue-500 to-cyan-600 text-white p-4 rounded-lg hover:from-blue-600 hover:to-cyan-700 transition-all transform hover:scale-105">
+                            <div class="text-2xl mb-2">📊</div>
+                            <div class="font-medium">Market Insights</div>
+                            <div class="text-xs opacity-90 mt-1">Rental market trends</div>
+                        </button>
+                        
+                        <button class="bg-gradient-to-r from-orange-500 to-red-600 text-white p-4 rounded-lg hover:from-orange-600 hover:to-red-700 transition-all transform hover:scale-105">
+                            <div class="text-2xl mb-2">⚡</div>
+                            <div class="font-medium">Upgrade to Pro</div>
+                            <div class="text-xs opacity-90 mt-1">Unlock premium features</div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity (Empty State) -->
+            <div class="bg-white shadow-lg rounded-lg overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">Recent Activity</h3>
+                </div>
+                <div class="p-12 text-center">
+                    <div class="text-gray-400 text-6xl mb-4">📝</div>
+                    <h4 class="text-lg font-medium text-gray-900 mb-2">No activity yet</h4>
+                    <p class="text-gray-500 mb-6">Start by searching for properties or writing your first review!</p>
+                    <button class="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors font-medium">
+                        Get Started
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Dashboard JavaScript with Correct localStorage Keys
+        class Dashboard {
+            constructor() {
+                this.user = null;
+                this.token = null;
+                this.init();
+            }
+
+            init() {
+                console.log('Dashboard loaded successfully!');
+                this.loadUserData();
+                this.setupEventListeners();
+                this.updateUI();
+            }
+
+            loadUserData() {
+                try {
+                    // Use the correct localStorage keys
+                    const tokenData = localStorage.getItem('rentreviews_token');
+                    const userData = localStorage.getItem('rentreviews_user');
+
+                    if (!tokenData || !userData) {
+                        console.warn('No authentication data found, redirecting to login...');
+                        this.redirectToAuth();
+                        return;
+                    }
+
+                    this.token = tokenData;
+                    this.user = JSON.parse(userData);
+
+                    console.log('User data loaded:', this.user);
+
+                } catch (error) {
+                    console.error('Error loading user data:', error);
+                    this.redirectToAuth();
+                }
+            }
+
+            updateUI() {
+                if (!this.user) {
+                    console.warn('No user data available');
+                    return;
+                }
+
+                try {
+                    // Update welcome message with actual name (using correct field names)
+                    const welcomeMessage = document.getElementById('welcomeMessage');
+                    if (welcomeMessage) {
+                        const firstName = this.user.first_name || this.user.firstName || 'User';
+                        welcomeMessage.textContent = `Welcome back, ${firstName}!`;
+                    }
+
+                    // Update navigation user name
+                    const userNameNav = document.getElementById('userNameNav');
+                    if (userNameNav) {
+                        const firstName = this.user.first_name || this.user.firstName || '';
+                        const lastName = this.user.last_name || this.user.lastName || '';
+                        userNameNav.textContent = `${firstName} ${lastName}`.trim();
+                    }
+
+                    // Update user initials
+                    const userInitials = document.getElementById('userInitials');
+                    const firstName = this.user.first_name || this.user.firstName;
+                    const lastName = this.user.last_name || this.user.lastName;
+                    if (userInitials && firstName && lastName) {
+                        userInitials.textContent = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+                    }
+
+                    // Update user role
+                    const userRole = document.getElementById('userRole');
+                    if (userRole) {
+                        userRole.textContent = `${this.user.role === 'renter' ? 'Renter' : 'Landlord'} Account`;
+                    }
+
+                    console.log('UI updated successfully');
+
+                } catch (error) {
+                    console.error('Error updating UI:', error);
+                }
+            }
+
+            setupEventListeners() {
+                // Logout functionality
+                const logoutBtn = document.getElementById('logoutBtn');
+                if (logoutBtn) {
+                    logoutBtn.addEventListener('click', () => this.logout());
+                }
+            }
+
+            logout() {
+                try {
+                    // Clear all authentication data
+                    localStorage.removeItem('rentreviews_token');
+                    localStorage.removeItem('rentreviews_user');
+                    localStorage.removeItem('token'); // Clear old format too
+                    localStorage.removeItem('user'); // Clear old format too
+                    
+                    console.log('Logout successful');
+                    this.redirectToAuth();
+                } catch (error) {
+                    console.error('Logout error:', error);
+                    this.redirectToAuth();
+                }
+            }
+
+            redirectToAuth() {
+                window.location.href = 'auth.html';
+            }
+        }
+
+        // Initialize dashboard when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new Dashboard();
+        });
+
+        // Security warning
+        console.warn(
+            '%cStop!',
+            'color: red; font-size: 50px; font-weight: bold;'
+        );
+        console.warn(
+            'This is a browser feature intended for developers. If someone told you to copy-paste something here to enable a feature or "hack" someone\'s account, it is a scam and will give them access to your account.'
+        );
+    </script>
+</body>
+</html>
