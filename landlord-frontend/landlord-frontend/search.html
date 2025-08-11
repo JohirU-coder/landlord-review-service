@@ -329,8 +329,34 @@
     }
 
     try {
-        // Fixed API call - remove query parameters that might be causing validation issues
-        const url = `${API_BASE_URL}/properties`;
+        // Build query parameters based on current filters
+        const queryParams = new URLSearchParams();
+        
+        // Add pagination
+        queryParams.append('limit', '6');
+        queryParams.append('offset', ((currentPage - 1) * 6).toString());
+        
+        // Add filters if they exist
+        if (currentFilters.location) {
+            // For location, we'll search in city, state, or address
+            // Since the API supports city search, we'll use that
+            queryParams.append('city', currentFilters.location);
+        }
+        
+        if (currentFilters.maxPrice) {
+            queryParams.append('max_rent', currentFilters.maxPrice);
+        }
+        
+        if (currentFilters.bedrooms) {
+            if (currentFilters.bedrooms === '4') {
+                queryParams.append('min_bedrooms', '4');
+            } else {
+                queryParams.append('min_bedrooms', currentFilters.bedrooms);
+                queryParams.append('max_bedrooms', currentFilters.bedrooms);
+            }
+        }
+        
+        const url = `${API_BASE_URL}/properties?${queryParams.toString()}`;
         console.log('Making request to:', url);
         
         const response = await fetch(url, {
@@ -366,7 +392,7 @@
                 loadMoreBtn.classList.add('hidden');
             }
         } else {
-            console.error('Invalid response format:', data);
+            console.log('No properties found or invalid response format');
             displayNoResults();
         }
     } catch (error) {
@@ -375,6 +401,27 @@
     }
     
     isLoading = false;
+}
+
+// Also update the handleSearch function to properly set filters:
+function handleSearch() {
+    const location = document.getElementById('locationSearch').value.trim();
+    const maxPrice = document.getElementById('maxPrice').value;
+    const bedrooms = document.getElementById('bedrooms').value;
+    
+    console.log('Search triggered with:', { location, maxPrice, bedrooms });
+    
+    // Update filters - now these will be used in the API call
+    currentFilters = {
+        location: location || null,
+        maxPrice: maxPrice || null,
+        bedrooms: bedrooms || null
+    };
+    
+    console.log('Current filters set to:', currentFilters);
+    
+    updateActiveFilters();
+    loadProperties(); // This will now use the filters in the API call
 }
 
         function showLoadingSkeleton() {
