@@ -319,45 +319,63 @@
         }
 
         async function loadProperties(append = false) {
-            if (isLoading) return;
-            
-            isLoading = true;
-            
-            if (!append) {
-                showLoadingSkeleton();
-                currentPage = 1;
-            }
+    if (isLoading) return;
+    
+    isLoading = true;
+    
+    if (!append) {
+        showLoadingSkeleton();
+        currentPage = 1;
+    }
 
-            try {
-                const response = await fetch(`${API_BASE_URL}/properties?page=${currentPage}&limit=6`);
-                const data = await response.json();
-                
-                if (data.success && data.properties) {
-                    if (append) {
-                        currentProperties = [...currentProperties, ...data.properties];
-                    } else {
-                        currentProperties = data.properties;
-                    }
-                    
-                    displayProperties(currentProperties, append);
-                    updateResultsCount(data.total_count || currentProperties.length);
-                    
-                    // Show/hide load more button
-                    if (data.has_next) {
-                        loadMoreBtn.classList.remove('hidden');
-                    } else {
-                        loadMoreBtn.classList.add('hidden');
-                    }
-                } else {
-                    displayNoResults();
-                }
-            } catch (error) {
-                console.error('Error loading properties:', error);
-                displayError();
+    try {
+        // Fixed API call - remove query parameters that might be causing validation issues
+        const url = `${API_BASE_URL}/properties`;
+        console.log('Making request to:', url);
+        
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('Response status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Response data:', data);
+        
+        if (data.success && data.properties) {
+            if (append) {
+                currentProperties = [...currentProperties, ...data.properties];
+            } else {
+                currentProperties = data.properties;
             }
             
-            isLoading = false;
+            displayProperties(currentProperties, append);
+            updateResultsCount(data.pagination?.total_count || currentProperties.length);
+            
+            // Show/hide load more button
+            if (data.pagination?.has_next) {
+                loadMoreBtn.classList.remove('hidden');
+            } else {
+                loadMoreBtn.classList.add('hidden');
+            }
+        } else {
+            console.error('Invalid response format:', data);
+            displayNoResults();
         }
+    } catch (error) {
+        console.error('Error loading properties:', error);
+        displayError();
+    }
+    
+    isLoading = false;
+}
 
         function showLoadingSkeleton() {
             propertyGrid.innerHTML = '';
