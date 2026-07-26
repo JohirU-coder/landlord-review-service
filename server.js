@@ -4,6 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const Joi = require('joi');
 const { Pool } = require('pg');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -13,10 +14,43 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// Validation schema for review creation
+// JWT auth — matches auth-service's authMiddleware.js exactly (same JWT_SECRET,
+// same payload shape: { userId, email, role }). reviewer_id/landlord_id are
+// derived from the token instead of trusting client-supplied values.
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+  if (!token) {
+    return res.status(401).json({ error: 'Access denied', message: 'No token provided' });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid token', message: 'Token is invalid or expired' });
+    }
+    req.user = user;
+    next();
+  });
+};
+
+const requireRole = (roles) => (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  if (!roles.includes(req.user.role)) {
+    return res.status(403).json({
+      error: 'Insufficient permissions',
+      message: `This endpoint requires ${roles.join(' or ')} role`
+    });
+  }
+  next();
+};
+
+// Validation schema for review creation — reviewer_id is no longer accepted
+// from the client; it's derived from the authenticated user's token.
 const createReviewSchema = Joi.object({
   property_id: Joi.number().integer().required(),
-  reviewer_id: Joi.number().integer().required(),
   overall_rating: Joi.number().integer().min(1).max(5).required(),
   communication_rating: Joi.number().integer().min(1).max(5).required(),
   maintenance_rating: Joi.number().integer().min(1).max(5).required(),
@@ -30,10 +64,8 @@ const createReviewSchema = Joi.object({
   anonymous: Joi.boolean().default(false)
 });
 
-// Validation schema for landlord response
+// Validation schema for landlord response — landlord_id derived from token.
 const landlordResponseSchema = Joi.object({
-  review_id: Joi.number().integer().required(),
-  landlord_id: Joi.number().integer().required(),
   response_text: Joi.string().required().min(20).max(1000)
 });
 
@@ -153,8 +185,8 @@ app.get('/setup-database', async (req, res) => {
   }
 });
 
-// POST /reviews - Create a new review
-app.post('/reviews', async (req, res) => {
+// POST /reviews - Create a new review (requires renter auth)
+app.post('/reviews', authenticateToken, requireRole(['renter']), async (req, res) => {
   try {
     // Validate request body
     const { error, value } = createReviewSchema.validate(req.body);
@@ -167,7 +199,6 @@ app.post('/reviews', async (req, res) => {
 
     const {
       property_id,
-      reviewer_id,
       overall_rating,
       communication_rating,
       maintenance_rating,
@@ -180,6 +211,8 @@ app.post('/reviews', async (req, res) => {
       would_recommend,
       anonymous
     } = value;
+
+    const reviewer_id = req.user.userId;
 
     // Verify property exists
     const propertyCheck = await pool.query(
@@ -194,23 +227,10 @@ app.post('/reviews', async (req, res) => {
       });
     }
 
-    // Verify reviewer exists and is a renter
-    const reviewerCheck = await pool.query(
-      'SELECT id, role FROM users WHERE id = $1',
-      [reviewer_id]
-    );
-
-    if (reviewerCheck.rows.length === 0) {
-      return res.status(404).json({
-        error: 'Reviewer not found',
-        message: 'The specified reviewer does not exist'
-      });
-    }
-
-    if (reviewerCheck.rows[0].role !== 'renter') {
+    if (propertyCheck.rows[0].landlord_id === reviewer_id) {
       return res.status(403).json({
-        error: 'Invalid user role',
-        message: 'Only renters can create reviews'
+        error: 'Cannot review own property',
+        message: 'You cannot review your own property'
       });
     }
 
@@ -461,11 +481,11 @@ app.get('/reviews', async (req, res) => {
   }
 });
 
-// POST /reviews/:id/response - Landlord response to review
-app.post('/reviews/:id/response', async (req, res) => {
+// POST /reviews/:id/response - Landlord response to review (requires landlord auth)
+app.post('/reviews/:id/response', authenticateToken, requireRole(['landlord']), async (req, res) => {
   try {
     const reviewId = parseInt(req.params.id);
-    
+
     if (isNaN(reviewId)) {
       return res.status(400).json({
         error: 'Invalid review ID',
@@ -474,10 +494,7 @@ app.post('/reviews/:id/response', async (req, res) => {
     }
 
     // Validate request body
-    const { error, value } = landlordResponseSchema.validate({
-      ...req.body,
-      review_id: reviewId
-    });
+    const { error, value } = landlordResponseSchema.validate(req.body);
 
     if (error) {
       return res.status(400).json({
@@ -486,7 +503,8 @@ app.post('/reviews/:id/response', async (req, res) => {
       });
     }
 
-    const { landlord_id, response_text } = value;
+    const { response_text } = value;
+    const landlord_id = req.user.userId;
 
     // Verify review exists and get property info
     const reviewCheck = await pool.query(`
