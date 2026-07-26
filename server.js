@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const Joi = require('joi');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
+const { saveBase64Photo, PHOTOS_DIR } = require('./photoStorage');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -62,7 +63,9 @@ const createReviewSchema = Joi.object({
   move_in_date: Joi.date().max('now'),
   move_out_date: Joi.date().min(Joi.ref('move_in_date')).allow(null),
   would_recommend: Joi.boolean().required(),
-  anonymous: Joi.boolean().default(false)
+  anonymous: Joi.boolean().default(false),
+  // Up to 2 photos, sent as base64 data URLs (data:image/jpeg;base64,...)
+  photos: Joi.array().items(Joi.string()).max(2).default([])
 });
 
 // Validation schema for landlord response — landlord_id derived from token.
@@ -83,7 +86,11 @@ const searchReviewsSchema = Joi.object({
 
 app.use(helmet());
 app.use(cors());
-app.use(express.json());
+// Higher limit than the 100kb default — request bodies can carry up to 2
+// base64-encoded photos (~13.3MB each once base64-inflated from 10MB raw).
+app.use(express.json({ limit: '30mb' }));
+// Serve uploaded review photos from the Railway volume mounted at PHOTOS_DIR.
+app.use('/photos', express.static(PHOTOS_DIR));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -172,9 +179,19 @@ app.get('/setup-database', async (req, res) => {
       );
     `);
 
-    res.json({ 
+    // Create review photos table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS review_photos (
+        id SERIAL PRIMARY KEY,
+        review_id INTEGER REFERENCES reviews(id) ON DELETE CASCADE,
+        filename TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    res.json({
       message: 'Review service database tables created successfully!',
-      tables: ['reviews', 'landlord_responses', 'review_helpfulness'],
+      tables: ['reviews', 'landlord_responses', 'review_helpfulness', 'review_photos'],
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -210,7 +227,8 @@ app.post('/reviews', authenticateToken, requireRole(['renter']), async (req, res
       move_in_date,
       move_out_date,
       would_recommend,
-      anonymous
+      anonymous,
+      photos
     } = value;
 
     const reviewer_id = req.user.id;
@@ -267,6 +285,20 @@ app.post('/reviews', authenticateToken, requireRole(['renter']), async (req, res
 
     const newReview = result.rows[0];
 
+    // Save photos (best-effort — an invalid/oversized photo is skipped, not
+    // a reason to fail the whole review submission).
+    const photoUrls = [];
+    for (const photo of photos) {
+      const filename = saveBase64Photo(photo);
+      if (!filename) continue;
+
+      await pool.query(
+        'INSERT INTO review_photos (review_id, filename) VALUES ($1, $2)',
+        [newReview.id, filename]
+      );
+      photoUrls.push(`/photos/${filename}`);
+    }
+
     res.status(201).json({
       success: true,
       message: 'Review created successfully',
@@ -287,6 +319,7 @@ app.post('/reviews', authenticateToken, requireRole(['renter']), async (req, res
         would_recommend: newReview.would_recommend,
         anonymous: newReview.anonymous,
         verified: newReview.verified,
+        photos: photoUrls,
         helpful_count: newReview.helpful_count,
         created_at: newReview.created_at
       }
@@ -424,6 +457,20 @@ app.get('/reviews', async (req, res) => {
     const totalPages = Math.ceil(totalCount / limit);
     const currentPage = Math.floor(offset / limit) + 1;
 
+    // Fetch photos for these reviews in one extra query (kept separate from
+    // the main join above to avoid disturbing its existing GROUP-BY-free shape).
+    const photosByReview = {};
+    if (reviews.length > 0) {
+      const photosResult = await pool.query(
+        'SELECT review_id, filename FROM review_photos WHERE review_id = ANY($1) ORDER BY created_at ASC',
+        [reviews.map(r => r.id)]
+      );
+      photosResult.rows.forEach(p => {
+        if (!photosByReview[p.review_id]) photosByReview[p.review_id] = [];
+        photosByReview[p.review_id].push(`/photos/${p.filename}`);
+      });
+    }
+
     // Format response
     const formattedReviews = reviews.map(review => ({
       id: review.id,
@@ -437,6 +484,7 @@ app.get('/reviews', async (req, res) => {
         first_name: review.reviewer_first_name,
         last_name: review.reviewer_last_name
       },
+      photos: photosByReview[review.id] || [],
       ratings: {
         overall: review.overall_rating,
         communication: review.communication_rating,
