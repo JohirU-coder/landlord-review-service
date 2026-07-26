@@ -14,9 +14,10 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// JWT auth — matches auth-service's authMiddleware.js exactly (same JWT_SECRET,
-// same payload shape: { userId, email, role }). reviewer_id/landlord_id are
-// derived from the token instead of trusting client-supplied values.
+// JWT auth — matches auth-service's generateToken() exactly (same JWT_SECRET,
+// same payload shape: { id, email, role, firstName, lastName, email_verified }).
+// reviewer_id/landlord_id are derived from the token instead of trusting
+// client-supplied values.
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
@@ -212,7 +213,7 @@ app.post('/reviews', authenticateToken, requireRole(['renter']), async (req, res
       anonymous
     } = value;
 
-    const reviewer_id = req.user.userId;
+    const reviewer_id = req.user.id;
 
     // Verify property exists
     const propertyCheck = await pool.query(
@@ -504,7 +505,7 @@ app.post('/reviews/:id/response', authenticateToken, requireRole(['landlord']), 
     }
 
     const { response_text } = value;
-    const landlord_id = req.user.userId;
+    const landlord_id = req.user.id;
 
     // Verify review exists and get property info
     const reviewCheck = await pool.query(`
