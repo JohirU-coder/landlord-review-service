@@ -85,12 +85,32 @@ const searchReviewsSchema = Joi.object({
 });
 
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:5500',
+    'http://127.0.0.1:5500',
+    'http://localhost:3000',
+    'https://rentreviews.net',
+    'https://www.rentreviews.net'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 // Higher limit than the 100kb default — request bodies can carry up to 2
 // base64-encoded photos (~13.3MB each once base64-inflated from 10MB raw).
 app.use(express.json({ limit: '30mb' }));
 // Serve uploaded review photos from the Railway volume mounted at PHOTOS_DIR.
 app.use('/photos', express.static(PHOTOS_DIR));
+
+// Gates schema-setup/admin endpoints -- matches auth-service's pattern.
+const requireAdminSecret = (req, res, next) => {
+  const secret = req.headers['x-admin-secret'];
+  if (!process.env.ADMIN_SECRET || secret !== process.env.ADMIN_SECRET) {
+    return res.status(403).json({ error: 'Forbidden', message: 'Admin access required' });
+  }
+  next();
+};
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -129,7 +149,7 @@ app.get('/test', (req, res) => {
 });
 
 // Database setup endpoint
-app.get('/setup-database', async (req, res) => {
+app.get('/setup-database', requireAdminSecret, async (req, res) => {
   try {
     // Create reviews table
     await pool.query(`
