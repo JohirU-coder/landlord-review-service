@@ -226,6 +226,18 @@ app.get('/setup-database', requireAdminSecret, async (req, res) => {
 // POST /reviews - Create a new review (requires renter auth)
 app.post('/reviews', authenticateToken, requireRole(['renter']), async (req, res) => {
   try {
+    // Re-check verification status live against the DB rather than trusting
+    // the JWT -- a token issued before email verification became required
+    // (or before this account got verified) would otherwise still work for
+    // the rest of its 7-day lifetime.
+    const verifiedCheck = await pool.query('SELECT email_verified FROM users WHERE id = $1', [req.user.id]);
+    if (verifiedCheck.rows.length === 0 || !verifiedCheck.rows[0].email_verified) {
+      return res.status(403).json({
+        error: 'Email not verified',
+        message: 'Please verify your email before submitting a review.'
+      });
+    }
+
     // Validate request body
     const { error, value } = createReviewSchema.validate(req.body);
     if (error) {
