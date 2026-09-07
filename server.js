@@ -586,6 +586,96 @@ app.get('/reviews', async (req, res) => {
   }
 });
 
+// GET /reviews/my-reviews - The authenticated user's own reviews (requires
+// auth). Deliberately a separate endpoint rather than adding a reviewer_id
+// filter to the public GET /reviews above: that endpoint has no auth at all,
+// so a reviewer_id param there would let anyone look up any other user's
+// full review history by guessing their ID. Forcing reviewer_id = req.user.id
+// here means a token can only ever retrieve its own owner's reviews.
+app.get('/reviews/my-reviews', authenticateToken, async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+    const offset = parseInt(req.query.offset) || 0;
+    const reviewer_id = req.user.id;
+
+    const [searchResult, countResult] = await Promise.all([
+      pool.query(`
+        SELECT
+          r.*,
+          p.address,
+          p.city,
+          p.state,
+          lr.response_text as landlord_response,
+          lr.created_at as response_created_at
+        FROM reviews r
+        JOIN properties p ON r.property_id = p.id
+        LEFT JOIN landlord_responses lr ON r.id = lr.review_id
+        WHERE r.reviewer_id = $1
+        ORDER BY r.created_at DESC
+        LIMIT $2 OFFSET $3
+      `, [reviewer_id, limit, offset]),
+      pool.query('SELECT COUNT(*) as total FROM reviews WHERE reviewer_id = $1', [reviewer_id])
+    ]);
+
+    const reviews = searchResult.rows;
+    const totalCount = parseInt(countResult.rows[0].total);
+
+    const photosByReview = {};
+    if (reviews.length > 0) {
+      const photosResult = await pool.query(
+        'SELECT review_id, filename FROM review_photos WHERE review_id = ANY($1) ORDER BY created_at ASC',
+        [reviews.map(r => r.id)]
+      );
+      photosResult.rows.forEach(p => {
+        if (!photosByReview[p.review_id]) photosByReview[p.review_id] = [];
+        photosByReview[p.review_id].push(`/photos/${p.filename}`);
+      });
+    }
+
+    const formattedReviews = reviews.map(review => ({
+      id: review.id,
+      property: {
+        id: review.property_id,
+        address: review.address,
+        city: review.city,
+        state: review.state
+      },
+      photos: photosByReview[review.id] || [],
+      ratings: {
+        overall: review.overall_rating,
+        communication: review.communication_rating,
+        maintenance: review.maintenance_rating,
+        property_condition: review.property_condition_rating,
+        value: review.value_rating
+      },
+      title: review.title,
+      review_text: review.review_text,
+      would_recommend: review.would_recommend,
+      anonymous: review.anonymous,
+      verified: review.verified,
+      helpful_count: review.helpful_count,
+      created_at: review.created_at,
+      landlord_response: review.landlord_response ? {
+        text: review.landlord_response,
+        created_at: review.response_created_at
+      } : null
+    }));
+
+    res.json({
+      success: true,
+      reviews: formattedReviews,
+      total_count: totalCount
+    });
+
+  } catch (error) {
+    console.error('Error fetching my-reviews:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to fetch your reviews'
+    });
+  }
+});
+
 // POST /reviews/:id/response - Landlord response to review (requires landlord auth)
 app.post('/reviews/:id/response', authenticateToken, requireRole(['landlord']), landlordResponseLimiter, async (req, res) => {
   try {
