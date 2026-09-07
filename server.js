@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const Joi = require('joi');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
@@ -71,6 +72,25 @@ const createReviewSchema = Joi.object({
 // Validation schema for landlord response — landlord_id derived from token.
 const landlordResponseSchema = Joi.object({
   response_text: Joi.string().required().min(20).max(1000)
+});
+
+// Neither of these existed at all before a pre-launch audit -- both write
+// endpoints are authenticated, but authentication alone doesn't stop a
+// single account from spamming reviews/responses, and each request can
+// carry up to ~30MB of photo data (see express.json limit below), making
+// this both a spam and a resource-abuse vector without a limit. Matches the
+// generosity of property-service's community-submission limiter -- far more
+// than any real user would ever need, tight enough to stop abuse.
+const createReviewLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  message: { error: 'Too many requests', message: 'Maximum 10 reviews per hour' }
+});
+
+const landlordResponseLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  message: { error: 'Too many requests', message: 'Maximum 20 responses per hour' }
 });
 
 // Validation schema for review search
@@ -228,7 +248,7 @@ app.get('/setup-database', requireAdminSecret, async (req, res) => {
 });
 
 // POST /reviews - Create a new review (requires renter auth)
-app.post('/reviews', authenticateToken, requireRole(['renter']), async (req, res) => {
+app.post('/reviews', authenticateToken, requireRole(['renter']), createReviewLimiter, async (req, res) => {
   try {
     // Re-check verification status live against the DB rather than trusting
     // the JWT -- a token issued before email verification became required
@@ -567,7 +587,7 @@ app.get('/reviews', async (req, res) => {
 });
 
 // POST /reviews/:id/response - Landlord response to review (requires landlord auth)
-app.post('/reviews/:id/response', authenticateToken, requireRole(['landlord']), async (req, res) => {
+app.post('/reviews/:id/response', authenticateToken, requireRole(['landlord']), landlordResponseLimiter, async (req, res) => {
   try {
     const reviewId = parseInt(req.params.id);
 
